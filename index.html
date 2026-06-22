@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -24,7 +23,7 @@
     body{font-family:'Sarabun',sans-serif;background:var(--gray-50);color:var(--text);font-size:15px}
     header{background:#fff;border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
     .brand{display:flex;align-items:center;gap:10px}
-    .brand-icon{width:36px;height:36px;background:var(--blue-600);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+    .brand-icon{width:42px;height:42px;border-radius:10px;object-fit:cover;flex-shrink:0}
     .brand-name{font-size:15px;font-weight:600;color:var(--text)}
     .brand-tag{font-size:12px;color:var(--text-sec)}
     .header-cta{background:var(--blue-600);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:500;cursor:pointer;text-decoration:none;display:inline-block}
@@ -111,7 +110,7 @@
 <div class="db-loader" id="db-loader"><div class="db-spinner"></div><div class="db-loader-text">กำลังโหลดราคาล่าสุด...</div></div>
 <header>
   <div class="brand">
-    <div class="brand-icon">💉</div>
+    <img src="logo.jpg" alt="คลินิกบ้านเด็ก" style="width:42px;height:42px;border-radius:10px;object-fit:cover;flex-shrink:0">
     <div>
       <div class="brand-name" id="clinic-name">คลินิกสุขภาพเด็ก</div>
       <div class="brand-tag">ตารางวัคซีนตามช่วงอายุ</div>
@@ -119,7 +118,7 @@
   </div>
   <a href="#" id="header-phone" class="header-cta">📞 โทรนัด</a>
 </header>
-<div class="promo-bar" id="promo-bar" style="display:none"><span class="promo-badge" id="promo-badge"></span><div><div class="promo-text" id="promo-title"></div><div class="promo-sub" id="promo-detail"></div></div><a class="promo-cta" id="promo-cta" href="#" target="_blank"></a><button class="promo-close" onclick="document.getElementById('promo-bar').style.display='none'" aria-label="ปิด">&times;</button></div>
+<div class="promo-bar" id="promo-bar" style="display:none"><span class="promo-badge" id="promo-badge"></span><div style="flex:1;min-width:0"><div class="promo-text" id="promo-title"></div><div class="promo-sub" id="promo-detail"></div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><a class="promo-cta" id="promo-cta" href="#" target="_blank"></a><div id="promo-dots" style="display:flex;gap:4px;margin:0 4px"></div><button class="promo-close" onclick="document.getElementById('promo-bar').style.display='none'" aria-label="ปิด">&times;</button></div></div>
 
 <div class="container">
   <div class="hero">
@@ -146,7 +145,7 @@
 </div>
 
 <footer>
-  ข้อมูลอ้างอิงจาก PIDST (สมาคมโรคติดเชื้อในเด็กแห่งประเทศไทย) • อัปเดต 2024<br>
+  สงวนลิขสิทธิ์ © 2569 คลินิกบ้านเด็ก • ข้อมูลอ้างอิงจาก PIDST อัปเดต 2024<br>
   ปรึกษาแพทย์ก่อนตัดสินใจฉีดวัคซีนทุกครั้ง<br><span id="db-status" style="font-size:11px;color:#888;margin-top:4px;display:block"></span>
 </footer>
 
@@ -166,14 +165,19 @@ var CLINIC = {
   address: "สุราษฎร์ธานี"
 };
 
-var PROMO = {
-  active: true,
-  badge: "โปรเดือนนี้",
-  title: "ฉีดวัคซีนครบชุด รับส่วนลด 15%",
-  detail: "ลูกค้าใหม่จองผ่าน LINE \u2022 หมดเขต 31 ก.ค. นี้",
-  cta: "รับโปร LINE",
-  ctaUrl: "https://line.me/ti/p/@116hbawh"
-};
+// รองรับหลายโปร — เพิ่มใน Google Sheet Sheet PROMOS
+// fallback defaults ถ้า Sheet โหลดไม่ได้
+var PROMOS = [
+  {
+    active: true,
+    badge: "โปรเดือนนี้",
+    title: "ฉีดวัคซีนครบชุด รับส่วนลด 15%",
+    detail: "ลูกค้าใหม่จองผ่าน LINE • หมดเขต 31 ก.ค. นี้",
+    cta: "รับโปร LINE",
+    ctaUrl: "https://line.me/ti/p/@116hbawh"
+  }
+];
+var PROMO = PROMOS[0]; // backward compat
 
 var VACCINES = {
   BCG:        { name:"BCG",          nameTH:"วัคซีนวัณโรค",                 price:350  },
@@ -228,6 +232,47 @@ var SCHEDULE = [
     package:{label:"แพ็กเกจวัยเรียน",normalPrice:4500,proPrice:3800,save:700} }
 ];
 
+// ── Promo Carousel ──
+var _promoIdx = 0;
+var _promoTimer = null;
+
+function showPromo(idx) {
+  var actives = PROMOS.filter(function(p){ return p.active; });
+  if (!actives.length) return;
+  idx = ((idx % actives.length) + actives.length) % actives.length;
+  _promoIdx = idx;
+  var p = actives[idx];
+  var bar = document.getElementById("promo-bar");
+  document.getElementById("promo-badge").textContent = p.badge || "";
+  document.getElementById("promo-title").textContent = p.title || "";
+  document.getElementById("promo-detail").textContent = p.detail || "";
+  var cta = document.getElementById("promo-cta");
+  cta.textContent = p.cta || ""; cta.href = p.ctaUrl || "#";
+  bar.style.display = "flex";
+  // dots
+  var dots = document.getElementById("promo-dots");
+  if (actives.length > 1) {
+    dots.innerHTML = actives.map(function(_,i){
+      return '<div onclick="showPromo('+i+');resetTimer()" style="width:6px;height:6px;border-radius:50%;background:'+(i===idx?'#fff':'rgba(255,255,255,.4)')+';cursor:pointer;transition:background .2s"></div>';
+    }).join('');
+  } else { dots.innerHTML = ''; }
+}
+
+function resetTimer() {
+  if (_promoTimer) clearInterval(_promoTimer);
+  var actives = PROMOS.filter(function(p){ return p.active; });
+  if (actives.length > 1) {
+    _promoTimer = setInterval(function(){ showPromo(_promoIdx + 1); }, 4000);
+  }
+}
+
+function initPromos() {
+  var actives = PROMOS.filter(function(p){ return p.active; });
+  if (!actives.length) return;
+  showPromo(0);
+  resetTimer();
+}
+
 // ── Load from Google Sheet ──
 function loadFromSheet() {
   if (!SHEET_API_URL || SHEET_API_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
@@ -246,12 +291,20 @@ function loadFromSheet() {
         CLINIC.line    = data.clinic.line    || CLINIC.line;
         CLINIC.address = data.clinic.address || CLINIC.address;
       }
-      if (data.promo) {
-        PROMO.active = data.promo.active === "TRUE" || data.promo.active === true;
-        PROMO.badge  = data.promo.badge  || PROMO.badge;
-        PROMO.title  = data.promo.title  || PROMO.title;
-        PROMO.detail = data.promo.detail || PROMO.detail;
-        PROMO.cta    = data.promo.cta    || PROMO.cta;
+      if (data.promos && Array.isArray(data.promos)) {
+        PROMOS = data.promos;
+        PROMO = PROMOS[0] || PROMO;
+      } else if (data.promo) {
+        // backward compat single promo sheet
+        PROMOS = [{
+          active: data.promo.active === "TRUE" || data.promo.active === true,
+          badge:  data.promo.badge  || PROMO.badge,
+          title:  data.promo.title  || PROMO.title,
+          detail: data.promo.detail || PROMO.detail,
+          cta:    data.promo.cta    || PROMO.cta,
+          ctaUrl: data.promo.ctaUrl || PROMO.ctaUrl
+        }];
+        PROMO = PROMOS[0];
       }
       if (data.vaccines) {
         Object.keys(data.vaccines).forEach(function(k) {
@@ -277,17 +330,8 @@ function loadFromSheet() {
 }
 
 function initPage() {
-// ── Promo banner ──
-if (PROMO.active) {
-  var bar = document.getElementById("promo-bar");
-  document.getElementById("promo-badge").textContent = PROMO.badge;
-  document.getElementById("promo-title").textContent = PROMO.title;
-  document.getElementById("promo-detail").textContent = PROMO.detail;
-  var ctaEl = document.getElementById("promo-cta");
-  ctaEl.textContent = PROMO.cta;
-  ctaEl.href = PROMO.ctaUrl;
-  bar.style.display = "flex";
-}
+// ── Promo carousel init ──
+initPromos();
 
 // ── Init ──
 document.getElementById("clinic-name").textContent = CLINIC.name;
