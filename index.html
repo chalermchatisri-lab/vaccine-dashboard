@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -90,10 +91,24 @@
     .empty-icon{font-size:40px;display:block;margin-bottom:10px}
     footer{background:#fff;border-top:1px solid var(--border);padding:16px 20px;text-align:center;font-size:12px;color:var(--text-sec)}
     @media(max-width:480px){.metrics{grid-template-columns:repeat(3,1fr)}.mv{font-size:17px}.pro-card{flex-direction:column;text-align:center}.cta-row{flex-direction:column}}
+
+    .promo-bar{background:#0F6E56;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
+    .promo-badge{background:rgba(255,255,255,.2);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600;white-space:nowrap}
+    .promo-text{font-size:13px;font-weight:500;flex:1;min-width:200px}
+    .promo-sub{font-size:11px;opacity:.8;margin-top:1px}
+    .promo-cta{background:#fff;color:#0F6E56;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;font-family:"Sarabun",sans-serif}
+    .promo-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:0 4px;line-height:1;margin-left:4px}
+
+    .db-loader{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.85);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:10px}
+    .db-spinner{width:32px;height:32px;border:3px solid #E6F1FB;border-top-color:#185FA5;border-radius:50%;animation:spin .8s linear infinite}
+    .db-loader-text{font-size:13px;color:#5F5E5A}
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
 
+
+<div class="db-loader" id="db-loader"><div class="db-spinner"></div><div class="db-loader-text">กำลังโหลดราคาล่าสุด...</div></div>
 <header>
   <div class="brand">
     <div class="brand-icon">💉</div>
@@ -104,6 +119,7 @@
   </div>
   <a href="#" id="header-phone" class="header-cta">📞 โทรนัด</a>
 </header>
+<div class="promo-bar" id="promo-bar" style="display:none"><span class="promo-badge" id="promo-badge"></span><div><div class="promo-text" id="promo-title"></div><div class="promo-sub" id="promo-detail"></div></div><a class="promo-cta" id="promo-cta" href="#" target="_blank"></a><button class="promo-close" onclick="document.getElementById('promo-bar').style.display='none'" aria-label="ปิด">&times;</button></div>
 
 <div class="container">
   <div class="hero">
@@ -131,16 +147,32 @@
 
 <footer>
   ข้อมูลอ้างอิงจาก PIDST (สมาคมโรคติดเชื้อในเด็กแห่งประเทศไทย) • อัปเดต 2024<br>
-  ปรึกษาแพทย์ก่อนตัดสินใจฉีดวัคซีนทุกครั้ง
+  ปรึกษาแพทย์ก่อนตัดสินใจฉีดวัคซีนทุกครั้ง<br><span id="db-status" style="font-size:11px;color:#888;margin-top:4px;display:block"></span>
 </footer>
 
 <script>
-// ── CONFIG ── แก้ตรงนี้เท่านั้น
+// ============================================================
+// 🔌 GOOGLE SHEET DATABASE CONFIG
+// ใส่ URL จาก Apps Script Web App ตรงนี้
+// ============================================================
+var SHEET_API_URL = "https://script.google.com/macros/s/AKfycbyhdOL2LLYFzWuIDtwerLfROydgFes_rND_PF_DK3Go6W7Vy6i0a4FiNtqZT2nfi1hi/exec";
+// ตัวอย่าง: "https://script.google.com/macros/s/AKfyc.../exec"
+
+// ── Fallback defaults (ใช้เมื่อ Sheet โหลดไม่ได้) ──
 var CLINIC = {
   name: "คลินิกบ้านเด็ก",
   phone: "0850659715",
   line: "@116hbawh",
   address: "สุราษฎร์ธานี"
+};
+
+var PROMO = {
+  active: true,
+  badge: "โปรเดือนนี้",
+  title: "ฉีดวัคซีนครบชุด รับส่วนลด 15%",
+  detail: "ลูกค้าใหม่จองผ่าน LINE \u2022 หมดเขต 31 ก.ค. นี้",
+  cta: "รับโปร LINE",
+  ctaUrl: "https://line.me/ti/p/@116hbawh"
 };
 
 var VACCINES = {
@@ -195,6 +227,67 @@ var SCHEDULE = [
     vaccines:[{ref:"DTP",type:"epi",dose:6,note:"กระตุ้น"},{ref:"HPV",type:"opt",dose:1,note:"แนะนำสำหรับเด็กหญิง"},{ref:"TYPHOID",type:"opt",dose:1},{ref:"FLU",type:"opt",dose:0,note:"ทุกปี"}],
     package:{label:"แพ็กเกจวัยเรียน",normalPrice:4500,proPrice:3800,save:700} }
 ];
+
+// ── Load from Google Sheet ──
+function loadFromSheet() {
+  if (!SHEET_API_URL || SHEET_API_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+    initPage();
+    return;
+  }
+  var loader = document.getElementById("db-loader");
+  if (loader) loader.style.display = "flex";
+
+  fetch(SHEET_API_URL)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.clinic) {
+        CLINIC.name    = data.clinic.name    || CLINIC.name;
+        CLINIC.phone   = data.clinic.phone   || CLINIC.phone;
+        CLINIC.line    = data.clinic.line    || CLINIC.line;
+        CLINIC.address = data.clinic.address || CLINIC.address;
+      }
+      if (data.promo) {
+        PROMO.active = data.promo.active === "TRUE" || data.promo.active === true;
+        PROMO.badge  = data.promo.badge  || PROMO.badge;
+        PROMO.title  = data.promo.title  || PROMO.title;
+        PROMO.detail = data.promo.detail || PROMO.detail;
+        PROMO.cta    = data.promo.cta    || PROMO.cta;
+      }
+      if (data.vaccines) {
+        Object.keys(data.vaccines).forEach(function(k) {
+          if (VACCINES[k]) VACCINES[k].price = data.vaccines[k].price;
+        });
+      }
+      if (data.packages) {
+        SCHEDULE.forEach(function(s) {
+          if (data.packages[s.id]) {
+            s.package.label       = data.packages[s.id].label       || s.package.label;
+            s.package.normalPrice = data.packages[s.id].normalPrice || s.package.normalPrice;
+            s.package.proPrice    = data.packages[s.id].proPrice    || s.package.proPrice;
+            s.package.save        = data.packages[s.id].save        || s.package.save;
+          }
+        });
+      }
+    })
+    .catch(function(e) { console.warn("Sheet load failed, using defaults", e); })
+    .finally(function() {
+      if (loader) loader.style.display = "none";
+      initPage();
+    });
+}
+
+function initPage() {
+// ── Promo banner ──
+if (PROMO.active) {
+  var bar = document.getElementById("promo-bar");
+  document.getElementById("promo-badge").textContent = PROMO.badge;
+  document.getElementById("promo-title").textContent = PROMO.title;
+  document.getElementById("promo-detail").textContent = PROMO.detail;
+  var ctaEl = document.getElementById("promo-cta");
+  ctaEl.textContent = PROMO.cta;
+  ctaEl.href = PROMO.ctaUrl;
+  bar.style.display = "flex";
+}
 
 // ── Init ──
 document.getElementById("clinic-name").textContent = CLINIC.name;
@@ -276,13 +369,17 @@ function renderDetail(s) {
   }
 
   html += '<div class="pro-card"><div class="pro-icon">🎯</div><div class="pro-info"><div class="pro-label">แพ็กเกจพิเศษ</div><div class="pro-name">' + pkg.label + '</div><div class="pro-detail">ราคาปกติ ฿' + pkg.normalPrice.toLocaleString() + ' • ประหยัด ฿' + pkg.save.toLocaleString() + '</div></div><div class="pro-price-col"><div class="pro-orig">฿' + pkg.normalPrice.toLocaleString() + '</div><div class="pro-price">฿' + pkg.proPrice.toLocaleString() + '</div><div class="pro-save">ประหยัด ฿' + pkg.save.toLocaleString() + '</div></div></div>'
-       + '<div class="cta-row"><a href="tel:' + CLINIC.phone + '" class="btn-primary">📅 จองนัดแพ็กเกจโปร</a><a href="https://line.me/ti/p/' + CLINIC.line + '" target="_blank" class="btn-secondary">💬 สอบถาม LINE</a></div>';
+       + (PROMO.active ? '<div style="background:#E1F5EE;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="background:#0F6E56;color:#fff;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:600;white-space:nowrap">' + PROMO.badge + '</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#085041">' + PROMO.title + '</div><div style="font-size:11px;color:#0F6E56;margin-top:1px">' + PROMO.detail + '</div></div><a href="' + PROMO.ctaUrl + '" target="_blank" style="background:#0F6E56;color:#fff;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;font-family:Sarabun,sans-serif">' + PROMO.cta + '</a></div>' : '')
+    + '<div class="cta-row"><a href="tel:' + CLINIC.phone + '" class="btn-primary">📅 จองนัดแพ็กเกจโปร</a><a href="https://line.me/ti/p/' + CLINIC.line + '" target="_blank" class="btn-secondary">💬 สอบถาม LINE</a></div>';
 
   var panel = document.getElementById("detail");
   panel.innerHTML = html;
   panel.style.display = "block";
   panel.scrollIntoView({ behavior:"smooth", block:"nearest" });
 }
+} // end initPage
+
+loadFromSheet();
 </script>
 </body>
 </html>
